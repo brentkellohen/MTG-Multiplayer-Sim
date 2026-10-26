@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Companion | Chaos, Planechase, Archenemy</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        mtg: {
+                            dark: '#0f172a',
+                            panel: '#1e293b',
+                            accent: '#6366f1',
+                            accentHover: '#4f46e5'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; overflow-x: hidden; }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            width: 24px; height: 24px; border-radius: 50%;
+            border-left-color: #6366f1;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Card Orientation CSS */
+        .card-container-normal { aspect-ratio: 1 / 1.4; }
+        .card-img-normal { width: 100%; height: 100%; object-fit: cover; }
+        .card-game-normal { width: 100%; max-width: 24rem; height: auto; transition: transform 0.3s ease; }
+        @media (min-width: 768px) { .card-game-normal { max-width: 28rem; } }
+
+        .card-container-plane { 
+            aspect-ratio: 1.4 / 1; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .card-img-plane { 
+            height: 142%; 
+            max-width: none; 
+            transform: rotate(90deg); 
+        }
+        .card-game-plane {
+            height: calc(min(60vh, 85vw));
+            max-width: none;
+            transform: rotate(90deg);
+            transition: transform 0.3s ease;
+        }
+
+        /* Modal Overlay */
+        #importModal {
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="glass-panel sticky top-0 z-50 px-6 py-4 flex justify-between items-center shadow-lg">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="app.goHome()">
+            <i data-lucide="layers" class="text-indigo-400"></i>
+            <h1 class="text-xl font-bold tracking-tight">MTG<span class="text-indigo-400">Companion</span></h1>
+        </div>
+        <div id="header-status" class="text-sm text-slate-400 font-medium"></div>
+    </header>
+
+    <!-- Main Content App Mount -->
+    <main id="app" class="flex-grow flex flex-col relative"></main>
+
+    <!-- Import List Modal -->
+    <div id="importModal" class="fixed inset-0 z-[200] hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div class="glass-panel rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-slate-700 transform scale-95 transition-transform duration-300" id="importModalContent">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-bold text-white flex items-center gap-2"><i data-lucide="clipboard-paste" class="text-indigo-400"></i> Import Custom List</h3>
+                <button onclick="app.closeImportModal()" class="text-slate-400 hover:text-white transition-colors p-1"><i data-lucide="x"></i></button>
+            </div>
+            <p class="text-slate-400 text-sm mb-4">Paste your decklist in standard MTG format (e.g., <code>1 Day of Judgment</code> or <code>4 Lightning Bolt</code>) or a direct Archidekt list.</p>
+            <textarea id="importTextarea" class="w-full h-64 bg-slate-800 border border-slate-700 rounded-xl p-4 text-white font-mono text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-500 mb-4 hide-scrollbar" placeholder="1 Sol Ring&#10;1 Mana Crypt&#10;1 Day of Judgment..."></textarea>
+            
+            <div class="flex justify-end gap-3">
+                <button onclick="app.closeImportModal()" class="px-6 py-3 rounded-xl font-semibold text-slate-300 hover:bg-slate-700 transition-colors">Cancel</button>
+                <button id="importBtn" onclick="app.processImportList()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i> Import Cards
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            view: 'landing', // 'landing', 'builder', 'game'
+            mode: null,
+            searchQuery: '',
+            searchResults: [],
+            isSearching: false,
+            isLoadingPreset: false,
+            deck: [],
+            discard: [],
+            activeCard: null,
+            dieResult: null,
+            notification: null,
+            gridView: 'normal',
+            playLog: []
+        };
+
+        const MODES = {
+            chaos: {
+                id: 'chaos',
+                title: 'Chaos Magic',
+                icon: 'zap',
+                color: 'text-orange-400',
+                bgHover: 'hover:border-orange-500',
+                desc: 'A casual multiplayer format where players add a Chaos Deck to create new and exciting challenges.',
+                query: 'legal:vintage',
+                actionLabel: 'Next Chaos Card',
+                presets: []
+            },
+            planechase: {
+                id: 'planechase',
+                title: 'Planechase',
+                icon: 'globe',
+                color: 'text-blue-400',
+                bgHover: 'hover:border-blue-500',
+                desc: 'Simulates traveling between different planes in the Magic storyline using oversized plane cards.',
+                query: 't:plane',
+                actionLabel: 'Planeswalk (Next Plane)',
+                presets: [
+                    { name: 'Planechase (2009)', query: 'set:hop' },
+                    { name: 'Planechase 2012', query: 'set:pc2' },
+                    { name: 'Planechase Anthology', query: 'set:pca' }
+                ]
+            },
+            archenemy: {
+                id: 'archenemy',
+                title: 'Archenemy',
+                icon: 'skull',
+                color: 'text-purple-400',
+                bgHover: 'hover:border-purple-500',
+                desc: 'One vs. many gameplay where the archenemy uses a deck of non-traditional scheme cards.',
+                query: 't:scheme',
+                actionLabel: 'Set Scheme in Motion',
+                presets: [
+                    { name: 'Archenemy (2010)', query: 'set:arc' },
+                    { name: 'Archenemy: Nicol Bolas', query: 'set:e01' }
+                ]
+            }
+        };
+
+        // --- Core Application Logic ---
+        const app = {
+            init() {
+                this.render();
+            },
+            
+            goHome() {
+                state.view = 'landing';
+                state.mode = null;
+                state.deck = [];
+                state.discard = [];
+                state.activeCard = null;
+                state.playLog = [];
+                this.render();
+            },
+
+            selectMode(modeId) {
+                state.mode = MODES[modeId];
+                state.view = 'builder';
+                state.searchResults = [];
+                state.searchQuery = '';
+                state.gridView = (modeId === 'chaos') ? 'zoom-out' : 'normal';
+                this.searchCards('');
+                this.render();
+            },
+
+            async searchCards(userQuery) {
+                state.isSearching = true;
+                this.render();
+
+                try {
+                    const fullQuery = `${state.mode.query} ${userQuery}`.trim();
+                    const response = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(fullQuery)}`);
+                    
+                    if (!response.ok) {
+                        state.searchResults = [];
+                    } else {
+                        const data = await response.json();
+                        state.searchResults = data.data.filter(c => c.image_uris || (c.card_faces && c.card_faces[0].image_uris));
+                    }
+                } catch (err) {
+                    console.error("Scryfall API Error:", err);
+                    state.searchResults = [];
+                }
+                
+                state.isSearching = false;
+                this.render();
+            },
+            
+            async loadPresetDeck(query) {
+                if (!query) return;
+                
+                state.isLoadingPreset = true;
+                this.render();
+                
+                try {
+                    // Scryfall's exact set search logic
+                    const fullQuery = `search?q=${encodeURIComponent(query + ' ' + state.mode.query)}`;
+                    const response = await fetch(`https://api.scryfall.com/cards/${fullQuery}`);
+                    
+                    if (response.ok) {
+                        let data = await response.json();
+                        let allCards = data.data;
+
+                        // Handle pagination for larger sets if necessary
+                        while (data.has_more && data.next_page) {
+                             const nextPageResponse = await fetch(data.next_page);
+                             if(nextPageResponse.ok) {
+                                 data = await nextPageResponse.json();
+                                 allCards = allCards.concat(data.data);
+                             } else {
+                                 break;
+                             }
+                        }
+
+                        const cards = allCards.filter(c => c.image_uris || (c.card_faces && c.card_faces[0].image_uris));
+                        
+                        // Clear current deck and load preset
+                        state.deck = cards.map(card => JSON.parse(JSON.stringify(card)));
+                        this.showNotification(`Loaded ${cards.length} cards from preset.`);
+                    } else {
+                         console.error("API response not ok", response.status);
+                         this.showNotification(`Error loading preset. API Status: ${response.status}`);
+                    }
+                } catch (err) {
+                    console.error("Scryfall API Error:", err);
+                    this.showNotification(`Failed to load preset data.`);
+                }
+                
+                state.isLoadingPreset = false;
+                this.render();
+            },
+
+            // --- Custom Import Logic ---
+            openImportModal() {
+                const modal = document.getElementById('importModal');
+                const content = document.getElementById('importModalContent');
+                document.getElementById('importTextarea').value = '';
+                
+                modal.classList.remove('hidden');
+                // Trigger reflow
+                void modal.offsetWidth;
+                
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            },
+
+            closeImportModal() {
+                const modal = document.getElementById('importModal');
+                const content = document.getElementById('importModalContent');
+                
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                content.classList.remove('scale-100');
+                content.classList.add('scale-95');
+                
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300); // match transition duration
+            },
+
+            async processImportList() {
+                const rawText = document.getElementById('importTextarea').value;
+                if (!rawText.trim()) {
+                    this.showNotification("Please paste a decklist first.");
+                    return;
+                }
+
+                const btn = document.getElementById('importBtn');
+                const originalBtnContent = btn.innerHTML;
+                btn.innerHTML = `<div class="spinner w-4 h-4 border-2"></div> Importing...`;
+                btn.disabled = true;
+
+                // Parse the text list
+                const lines = rawText.split('\n');
+                const requests = [];
+
+                // Simple regex to match: [optional qty] [Card Name]
+                // Examples: "1 Day of Judgment", "Day of Judgment", "4x Lightning Bolt"
+                const lineRegex = /^(?:(\d+)x?\s+)?(.+)$/i;
+
+                lines.forEach(line => {
+                    const cleanLine = line.trim();
+                    if (!cleanLine || cleanLine.startsWith('//') || cleanLine.startsWith('#')) return; // skip empty or comments
+
+                    const match = cleanLine.match(lineRegex);
+                    if (match) {
+                        const qty = parseInt(match[1], 10) || 1;
+                        let cardName = match[2].trim();
+                        
+                        // Handle simple board designations like "SB: 1 Day of Judgment"
+                        if(cardName.toLowerCase().startsWith('sb: ')) {
+                            cardName = cardName.substring(4).trim();
+                        }
+
+                        if (cardName) {
+                            // Format for Scryfall's collection API
+                            requests.push({ name: cardName, qty: qty });
+                        }
+                    }
+                });
+
+                if (requests.length === 0) {
+                    this.showNotification("Could not parse any valid cards from the list.");
+                    this.resetImportBtn(btn, originalBtnContent);
+                    return;
+                }
+
+                // Scryfall collections API allows max 75 per request
+                const chunks = [];
+                for (let i = 0; i < requests.length; i += 75) {
+                    chunks.push(requests.slice(i, i + 75));
+                }
+
+                let totalAdded = 0;
+                let failedCards = [];
+
+                for (const chunk of chunks) {
+                    try {
+                        const payload = {
+                            identifiers: chunk.map(req => ({ name: req.name }))
+                        };
+
+                        const response = await fetch('https://api.scryfall.com/cards/collection', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            // Map results back to quantities and add to deck
+                            data.data.forEach(card => {
+                                // Find the original request to get the quantity
+                                // Handle case sensitivity and exact matches
+                                const originalReq = chunk.find(r => 
+                                    r.name.toLowerCase() === card.name.toLowerCase() || 
+                                    card.name.toLowerCase().includes(r.name.toLowerCase())
+                                );
+                                
+                                const qty = originalReq ? originalReq.qty : 1;
+                                
+                                for(let i=0; i<qty; i++) {
+                                    state.deck.push(JSON.parse(JSON.stringify(card)));
+                                    totalAdded++;
+                                }
+                            });
+
+                            if(data.not_found && data.not_found.length > 0) {
+                                failedCards = failedCards.concat(data.not_found.map(nf => nf.name));
+                            }
+                        } else {
+                            console.error("Scryfall Collection API error:", response.status);
+                        }
+                    } catch (err) {
+                        console.error("Error fetching chunk:", err);
+                    }
+                }
+
+                this.resetImportBtn(btn, originalBtnContent);
+                this.closeImportModal();
+                
+                if (failedCards.length > 0) {
+                    this.showNotification(`Added ${totalAdded} cards. Failed to find: ${failedCards.slice(0,3).join(', ')}${failedCards.length > 3 ? '...' : ''}`);
+                } else {
+                    this.showNotification(`Successfully imported ${totalAdded} cards!`);
+                }
+                
+                this.render();
+            },
+
+            resetImportBtn(btn, content) {
+                btn.innerHTML = content;
+                btn.disabled = false;
+            },
+
+
+            handleSearch(event) {
+                event.preventDefault();
+                const query = document.getElementById('searchInput').value;
+                this.searchCards(query);
+            },
+
+            addCardToDeck(cardId) {
+                const card = state.searchResults.find(c => c.id === cardId);
+                if (card) {
+                    state.deck.push(JSON.parse(JSON.stringify(card)));
+                    this.showNotification(`Added ${card.name} to deck`);
+                    this.render();
+                }
+            },
+
+            removeCardFromDeck(index) {
+                state.deck.splice(index, 1);
+                this.render();
+            },
+
+            clearDeck() {
+                state.deck = [];
+                this.render();
+            },
+
+            setGridView(viewType) {
+                state.gridView = viewType;
+                this.render();
+            },
+
+            logAction(actionText, detailText) {
+                const now = new Date();
+                const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                state.playLog.unshift({ action: actionText, detail: detailText, time: timeStr });
+                if (state.playLog.length > 50) state.playLog.pop();
+            },
+
+            startGame() {
+                if (state.deck.length === 0) {
+                    this.showNotification("Add at least one card to your deck to start!");
+                    return;
+                }
+                state.deck = state.deck.sort(() => Math.random() - 0.5);
+                state.activeCard = state.deck.shift();
+                state.view = 'game';
+                state.dieResult = null;
+                state.playLog = [];
+                
+                if (state.activeCard) {
+                    const actionName = state.mode.id === 'planechase' ? 'Planeswalked to' : 'Revealed';
+                    this.logAction(actionName, state.activeCard.name);
+                }
+                
+                this.render();
+            },
+
+            nextCard() {
+                if (state.activeCard) {
+                    state.discard.push(state.activeCard);
+                }
+                if (state.deck.length > 0) {
+                    state.activeCard = state.deck.shift();
+                    const actionName = state.mode.id === 'planechase' ? 'Planeswalked to' : 'Revealed';
+                    this.logAction(actionName, state.activeCard.name);
+                } else {
+                    if (state.discard.length > 0) {
+                        this.showNotification("Deck empty. Reshuffling discard pile!");
+                        this.logAction('System', 'Reshuffled Discard Pile');
+                        state.deck = state.discard.sort(() => Math.random() - 0.5);
+                        state.discard = [];
+                        state.activeCard = state.deck.shift();
+                        
+                        const actionName = state.mode.id === 'planechase' ? 'Planeswalked to' : 'Revealed';
+                        this.logAction(actionName, state.activeCard.name);
+                    } else {
+                        state.activeCard = null;
+                        this.logAction('System', 'Deck Depleted');
+                    }
+                }
+                state.dieResult = null;
+                this.render();
+            },
+
+            undoLastAction() {
+                if (state.discard.length === 0 && !state.dieResult) {
+                    this.showNotification("Nothing to undo!");
+                    return;
+                }
+
+                if (state.dieResult) {
+                    this.logAction('Undo', `Cancelled die roll: ${state.dieResult.type}`);
+                    state.dieResult = null;
+                } else {
+                    if (state.activeCard) {
+                        state.deck.unshift(state.activeCard);
+                    }
+                    state.activeCard = state.discard.pop();
+                    this.logAction('Undo', `Reverted to ${state.activeCard.name}`);
+                }
+                this.render();
+            },
+
+            rollPlanarDie() {
+                const roll = Math.floor(Math.random() * 6) + 1;
+                if (roll === 1) {
+                    state.dieResult = { type: 'planeswalk', text: 'Planeswalk! Move to the next plane.' };
+                    this.logAction('Die Roll', 'Planeswalk');
+                } else if (roll === 2) {
+                    state.dieResult = { type: 'chaos', text: 'Chaos! Trigger the chaos ability.' };
+                    this.logAction('Die Roll', 'Chaos');
+                } else {
+                    state.dieResult = { type: 'blank', text: 'Blank. Nothing happens.' };
+                    this.logAction('Die Roll', 'Blank');
+                }
+                this.render();
+            },
+
+            getCardImage(card) {
+                if (!card) return '';
+                if (card.image_uris && card.image_uris.normal) return card.image_uris.normal;
+                if (card.card_faces && card.card_faces[0].image_uris) return card.card_faces[0].image_uris.normal;
+                return 'https://via.placeholder.com/250x350?text=No+Image';
+            },
+
+            showNotification(msg) {
+                state.notification = msg;
+                this.render();
+                setTimeout(() => {
+                    state.notification = null;
+                    this.render();
+                }, 3500); // Slightly longer for error messages
+            },
+
+            // --- View Rendering ---
+            render() {
+                const appDiv = document.getElementById('app');
+                const headerStatus = document.getElementById('header-status');
+                
+                if (state.view === 'landing') {
+                    headerStatus.innerHTML = 'Select a Game Format';
+                    appDiv.innerHTML = this.renderLanding();
+                } else if (state.view === 'builder') {
+                    headerStatus.innerHTML = `<span class="text-white">${state.mode.title}</span> &bull; Deck Builder`;
+                    appDiv.innerHTML = this.renderBuilder();
+                } else if (state.view === 'game') {
+                    headerStatus.innerHTML = `<span class="text-white">${state.mode.title}</span> &bull; Cards Remaining: ${state.deck.length}`;
+                    appDiv.innerHTML = this.renderGame();
+                }
+
+                if (state.notification) {
+                    appDiv.innerHTML += `
+                        <div class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white px-6 py-3 rounded-full shadow-2xl z-[100] flex items-center gap-2 animate-bounce">
+                            <i data-lucide="info" class="w-5 h-5"></i>
+                            ${state.notification}
+                        </div>
+                    `;
+                }
+
+                lucide.createIcons();
+            },
+
+            renderLanding() {
+                return `
+                <div class="max-w-6xl mx-auto px-6 py-12 flex-grow flex flex-col justify-center">
+                    <div class="text-center mb-16">
+                        <h2 class="text-4xl md:text-5xl font-extrabold mb-4">Choose Your Battlefield</h2>
+                        <p class="text-slate-400 max-w-2xl mx-auto text-lg">Enhance your casual multiplayer games. Select a format below to build your deck and access a digital game board companion.</p>
+                    </div>
+                    <div class="grid md:grid-cols-3 gap-8">
+                        ${Object.values(MODES).map(mode => `
+                            <button onclick="app.selectMode('${mode.id}')" class="glass-panel p-8 rounded-2xl text-left card-hover border border-slate-700 ${mode.bgHover} group flex flex-col h-full">
+                                <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center mb-6 border border-slate-600 group-hover:border-slate-400 transition-colors">
+                                    <i data-lucide="${mode.icon}" class="w-7 h-7 ${mode.color}"></i>
+                                </div>
+                                <h3 class="text-2xl font-bold mb-3 text-white">${mode.title}</h3>
+                                <p class="text-slate-400 flex-grow leading-relaxed">${mode.desc}</p>
+                                <div class="mt-6 text-sm font-semibold text-indigo-400 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                    Build Deck <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                                </div>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>`;
+            },
+
+            renderBuilder() {
+                const isPlane = state.mode.id === 'planechase';
+                
+                let gridClass = 'grid gap-6 auto-rows-max';
+                let containerClass = isPlane ? 'card-container-plane' : 'card-container-normal';
+                let imgClass = isPlane ? 'card-img-plane' : 'card-img-normal';
+
+                if (state.gridView === 'normal') {
+                    gridClass += ' grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
+                } else if (state.gridView === 'zoom-out') {
+                    gridClass += ' grid-cols-3 md:grid-cols-5 lg:grid-cols-6';
+                    gridClass = gridClass.replace('gap-6', 'gap-3');
+                } else if (state.gridView === 'list') {
+                    gridClass = 'flex flex-col gap-2';
+                }
+
+                const viewControls = `
+                    <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+                        <button onclick="app.setGridView('normal')" class="p-2 rounded-md ${state.gridView === 'normal' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'} transition-colors" title="Normal Grid">
+                            <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="app.setGridView('zoom-out')" class="p-2 rounded-md ${state.gridView === 'zoom-out' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'} transition-colors" title="Dense Grid">
+                            <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="app.setGridView('list')" class="p-2 rounded-md ${state.gridView === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'} transition-colors" title="List View">
+                            <i data-lucide="list" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+
+                // Chaos Magic specific import button
+                let importBtnHtml = '';
+                if (state.mode.id === 'chaos') {
+                     importBtnHtml = `
+                        <button onclick="app.openImportModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-4 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 whitespace-nowrap" title="Paste a custom decklist">
+                            <i data-lucide="clipboard-paste" class="w-4 h-4"></i> Import List
+                        </button>
+                     `;
+                }
+
+                let resultsHtml = '';
+                if (state.isSearching) {
+                    resultsHtml = `<div class="flex-grow flex items-center justify-center"><div class="spinner"></div></div>`;
+                } else if (state.searchResults.length === 0) {
+                    resultsHtml = `<div class="flex-grow flex flex-col items-center justify-center text-slate-500"><i data-lucide="search-x" class="w-12 h-12 mb-4"></i><p>No cards found.</p></div>`;
+                } else {
+                    if (state.gridView === 'list') {
+                        resultsHtml = `<div class="${gridClass}">
+                            ${state.searchResults.map(card => `
+                                <div class="flex items-center justify-between p-3 bg-slate-800 border border-slate-700 rounded-lg hover:border-indigo-500 transition-colors cursor-pointer group" onclick="app.addCardToDeck('${card.id}')">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
+                                            <img src="${this.getCardImage(card)}" class="w-full h-full object-cover" alt="icon">
+                                        </div>
+                                        <div>
+                                            <div class="font-bold text-slate-200">${card.name}</div>
+                                            <div class="text-xs text-slate-400">${card.type_line || ''}</div>
+                                        </div>
+                                    </div>
+                                    <button class="bg-indigo-600/0 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white px-3 py-1 rounded-md text-sm transition-all flex items-center gap-1">
+                                        <i data-lucide="plus" class="w-4 h-4"></i> Add
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>`;
+                    } else {
+                        resultsHtml = `<div class="${gridClass}">
+                            ${state.searchResults.map(card => `
+                                <div class="relative group cursor-pointer card-hover bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-700 ${containerClass}" onclick="app.addCardToDeck('${card.id}')">
+                                    <img src="${this.getCardImage(card)}" class="${imgClass}" alt="${card.name}" loading="lazy">
+                                    <div class="absolute inset-0 bg-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm z-10">
+                                        <span class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Add</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                           </div>`;
+                    }
+                }
+
+                // Preset Dropdown Html
+                let presetHtml = '';
+                if (state.mode.presets && state.mode.presets.length > 0) {
+                    presetHtml = `
+                        <div class="mb-4">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Load Official Deck</label>
+                            <div class="relative flex">
+                                <select id="presetSelect" class="w-full appearance-none bg-slate-800 border border-slate-700 rounded-l-xl py-2 px-3 text-sm text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                                    <option value="">Select a preset...</option>
+                                    ${state.mode.presets.map(p => `<option value="${p.query}">${p.name}</option>`).join('')}
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-10 flex items-center px-2 text-slate-400">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </div>
+                                <button onclick="app.loadPresetDeck(document.getElementById('presetSelect').value)" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-r-xl border-y border-r border-slate-700 transition-colors flex items-center justify-center" ${state.isLoadingPreset ? 'disabled' : ''}>
+                                    ${state.isLoadingPreset ? '<div class="spinner w-4 h-4 border-2"></div>' : '<i data-lucide="download" class="w-4 h-4"></i>'}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const deckHtml = state.deck.length === 0
+                    ? `<div class="text-slate-500 text-sm text-center py-10 border-2 border-dashed border-slate-700 rounded-xl">Your deck is empty.<br>Click cards to add them.</div>`
+                    : `<div class="flex flex-col gap-2 max-h-[40vh] overflow-y-auto hide-scrollbar pr-2">
+                        ${state.deck.map((card, i) => `
+                            <div class="flex items-center justify-between bg-slate-800 p-2 rounded-lg border border-slate-700">
+                                <span class="text-sm font-medium truncate flex-grow pr-2">${card.name}</span>
+                                <button onclick="app.removeCardFromDeck(${i})" class="text-red-400 hover:text-red-300 p-1 rounded-md hover:bg-slate-700 transition-colors"><i data-lucide="x" class="w-4 h-4"></i></button>
+                            </div>
+                        `).join('')}
+                       </div>`;
+
+                return `
+                <div class="flex flex-col md:flex-row flex-grow h-[calc(100vh-73px)] overflow-hidden">
+                    <div class="flex-grow flex flex-col p-6 overflow-hidden">
+                        <div class="flex flex-wrap gap-3 mb-6 items-center">
+                            <form onsubmit="app.handleSearch(event)" class="flex gap-3 flex-grow min-w-[250px]">
+                                <div class="relative flex-grow">
+                                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5"></i>
+                                    <input type="text" id="searchInput" placeholder="Search Scryfall (e.g. set:arc, c:blue, theme)..." value="${state.searchQuery}" class="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-500">
+                                </div>
+                                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-colors">Search</button>
+                            </form>
+                            ${importBtnHtml}
+                            ${viewControls}
+                        </div>
+                        <div class="flex-grow overflow-y-auto hide-scrollbar pr-4">
+                            ${resultsHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="w-full md:w-80 glass-panel border-l border-slate-700 flex flex-col p-6 shadow-2xl z-20">
+                        ${presetHtml}
+                        <div class="flex justify-between items-center mb-4 mt-2">
+                            <h3 class="text-lg font-bold">Current Deck</h3>
+                            <div class="flex items-center gap-2">
+                                <span class="bg-indigo-600/30 text-indigo-300 px-2 py-1 rounded-md text-xs font-bold border border-indigo-500/50">${state.deck.length} Cards</span>
+                                ${state.deck.length > 0 ? `<button onclick="app.clearDeck()" class="text-slate-400 hover:text-red-400 transition-colors p-1" title="Clear Deck"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex-grow mb-6">
+                            ${deckHtml}
+                        </div>
+                        <button onclick="app.startGame()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-xl font-bold text-lg transition-colors shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+                            <i data-lucide="play" class="w-5 h-5"></i> Start Game
+                        </button>
+                    </div>
+                </div>`;
+            },
+
+            renderGame() {
+                if (!state.activeCard && state.deck.length === 0 && state.discard.length === 0) {
+                    return `
+                    <div class="flex-grow flex flex-col items-center justify-center p-6">
+                        <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-700 shadow-xl">
+                            <i data-lucide="alert-circle" class="w-10 h-10 text-red-400"></i>
+                        </div>
+                        <h2 class="text-3xl font-bold mb-2">No Deck Found</h2>
+                        <button onclick="app.goHome()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-semibold transition-colors">Return to Setup</button>
+                    </div>`;
+                }
+
+                let extraControls = '';
+                let dieOverlay = '';
+                const gameImgClass = state.mode.id === 'planechase' ? 'card-game-plane' : 'card-game-normal';
+
+                if (state.mode.id === 'planechase') {
+                    extraControls = `
+                        <button onclick="app.rollPlanarDie()" class="bg-amber-600 hover:bg-amber-500 text-white px-6 py-4 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-amber-900/30 transition-colors z-30">
+                            <i data-lucide="dices" class="w-5 h-5"></i> Roll Planar Die
+                        </button>
+                    `;
+                    if (state.dieResult) {
+                        const resultColors = {
+                            'planeswalk': 'bg-blue-600 border-blue-400 text-white shadow-blue-500/50',
+                            'chaos': 'bg-orange-600 border-orange-400 text-white shadow-orange-500/50',
+                            'blank': 'bg-slate-700 border-slate-500 text-slate-200'
+                        };
+                        const colorClass = resultColors[state.dieResult.type];
+                        dieOverlay = `
+                            <div class="absolute top-10 left-1/2 transform -translate-x-1/2 px-8 py-4 rounded-2xl border-2 shadow-2xl ${colorClass} text-center z-50 animate-pulse flex flex-col items-center gap-2 cursor-pointer" onclick="this.style.display='none'">
+                                <span class="font-black tracking-widest uppercase text-sm opacity-80">Die Result</span>
+                                <span class="text-2xl font-bold">${state.dieResult.text}</span>
+                                <span class="text-xs opacity-60 mt-1">(Click to dismiss)</span>
+                            </div>
+                        `;
+                    }
+                }
+
+                const logHtml = `
+                    <div class="absolute top-0 right-0 h-[calc(100vh-160px)] w-72 glass-panel border-l border-slate-700 p-4 transform transition-transform duration-300 translate-x-0 hidden md:flex flex-col z-30 shadow-2xl overflow-hidden">
+                        <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
+                            <h3 class="font-bold flex items-center gap-2"><i data-lucide="history" class="w-4 h-4 text-indigo-400"></i> Play Log</h3>
+                            <button onclick="app.undoLastAction()" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-300 transition-colors flex items-center gap-1">
+                                <i data-lucide="undo-2" class="w-3 h-3"></i> Undo
+                            </button>
+                        </div>
+                        <div class="flex-grow overflow-y-auto hide-scrollbar flex flex-col gap-2">
+                            ${state.playLog.length === 0 ? `<p class="text-slate-500 text-sm text-center italic mt-4">Game started...</p>` : ''}
+                            ${state.playLog.map((log, i) => `
+                                <div class="bg-slate-800/80 rounded p-2 text-sm border border-slate-700/50 flex flex-col gap-1 ${i === 0 ? 'border-indigo-500/30 bg-indigo-900/20' : 'opacity-75'}">
+                                    <div class="flex justify-between items-center text-xs">
+                                        <span class="font-bold text-indigo-300">${log.action}</span>
+                                        <span class="text-slate-500">${log.time}</span>
+                                    </div>
+                                    <div class="text-slate-200 truncate font-medium">${log.detail}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+
+                return `
+                <div class="flex-grow flex flex-col relative overflow-hidden bg-mtg-dark">
+                    ${dieOverlay}
+                    ${logHtml}
+                    
+                    <div class="absolute inset-0 z-0 opacity-20 pointer-events-none">
+                        <img src="${this.getCardImage(state.activeCard)}" class="w-full h-full object-cover blur-3xl scale-110" alt="Background">
+                    </div>
+                    
+                    <div class="relative z-10 flex-grow flex items-center justify-center p-4 md:p-8 overflow-hidden md:pr-72">
+                        <div class="flex items-center justify-center w-full h-full">
+                            ${state.activeCard ? `<img src="${this.getCardImage(state.activeCard)}" class="rounded-2xl shadow-2xl shadow-black border border-slate-700/50 ${gameImgClass}" alt="${state.activeCard.name}">` : `<div class="text-2xl font-bold text-slate-500">Deck Empty</div>`}
+                        </div>
+                    </div>
+
+                    <div class="relative z-40 glass-panel border-t border-slate-700 p-6 flex flex-col md:flex-row items-center justify-center gap-4">
+                        <button onclick="app.undoLastAction()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-4 rounded-xl font-bold flex items-center justify-center shadow-lg transition-colors md:hidden">
+                            <i data-lucide="undo-2" class="w-5 h-5"></i>
+                        </button>
+                        ${extraControls}
+                        <button onclick="app.nextCard()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 shadow-lg shadow-indigo-900/30 transition-colors z-30">
+                            ${state.mode.actionLabel} <i data-lucide="arrow-right-circle" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>`;
+            }
+        };
+
+        window.app = app;
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
