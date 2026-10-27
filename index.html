@@ -81,9 +81,7 @@
         }
 
         /* Modal Overlay */
-        #importModal {
-            transition: opacity 0.3s ease;
-        }
+        .modal-transition { transition: opacity 0.3s ease; }
     </style>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
@@ -94,14 +92,19 @@
             <i data-lucide="layers" class="text-indigo-400"></i>
             <h1 class="text-xl font-bold tracking-tight">MTG<span class="text-indigo-400">Companion</span></h1>
         </div>
-        <div id="header-status" class="text-sm text-slate-400 font-medium"></div>
+        <div class="flex items-center gap-4">
+            <button onclick="app.toggleRules()" class="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
+                <i data-lucide="book-open" class="w-4 h-4"></i> Rules
+            </button>
+            <div id="header-status" class="text-sm text-slate-400 font-medium hidden md:block"></div>
+        </div>
     </header>
 
     <!-- Main Content App Mount -->
     <main id="app" class="flex-grow flex flex-col relative"></main>
 
     <!-- Import List Modal -->
-    <div id="importModal" class="fixed inset-0 z-[200] hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none">
+    <div id="importModal" class="fixed inset-0 z-[200] hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none modal-transition">
         <div class="glass-panel rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-slate-700 transform scale-95 transition-transform duration-300" id="importModalContent">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-2xl font-bold text-white flex items-center gap-2"><i data-lucide="clipboard-paste" class="text-indigo-400"></i> Import Custom List</h3>
@@ -115,6 +118,56 @@
                 <button id="importBtn" onclick="app.processImportList()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2">
                     <i data-lucide="download" class="w-4 h-4"></i> Import Cards
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rules Modal / Dropdown -->
+    <div id="rulesModal" class="fixed inset-0 z-[150] hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none modal-transition">
+        <div class="glass-panel rounded-2xl p-6 w-full max-w-4xl max-h-[85vh] overflow-y-auto shadow-2xl border border-slate-700 transform scale-95 transition-transform duration-300 hide-scrollbar" id="rulesModalContent">
+            <div class="flex justify-between items-center mb-6 sticky top-0 bg-mtg-panel/90 backdrop-blur pb-4 border-b border-slate-700 z-10 -mx-6 px-6 -mt-6 pt-6">
+                <h3 class="text-2xl font-bold text-white flex items-center gap-2"><i data-lucide="book-open" class="text-indigo-400"></i> Format Rules</h3>
+                <button onclick="app.toggleRules()" class="text-slate-400 hover:text-white transition-colors p-1"><i data-lucide="x"></i></button>
+            </div>
+            
+            <div class="space-y-8 text-slate-300">
+                <!-- Planechase Rules -->
+                <section>
+                    <h4 class="text-xl font-bold text-blue-400 mb-3 flex items-center gap-2"><i data-lucide="globe" class="w-5 h-5"></i> Planechase</h4>
+                    <p class="mb-2">Planechase is a supplemental multiplayer format that simulates traveling between different planes in the Magic storyline using oversized plane cards.</p>
+                    <ul class="list-disc pl-5 space-y-2 text-sm">
+                        <li>Each player may enter with a planar deck, or you can use a shared planar deck in the center.</li>
+                        <li>Plane cards have two abilities: a static/triggered ability that applies while revealed, and a chaos ability.</li>
+                        <li>During your turn, whenever you could cast a sorcery, you may roll the Planar Die. The first roll each turn is free. Subsequent rolls cost 1 additional generic mana for each time you have already rolled that turn (e.g., 2nd roll costs 1, 3rd costs 2).</li>
+                        <li><strong>Planeswalker Symbol:</strong> Planeswalk! The current plane is put on the bottom of the planar deck, and the top card is revealed.</li>
+                        <li><strong>Chaos Symbol:</strong> Trigger the current plane's chaos ability.</li>
+                        <li><strong>Blank Faces:</strong> Nothing happens.</li>
+                    </ul>
+                </section>
+
+                <!-- Archenemy Rules -->
+                <section>
+                    <h4 class="text-xl font-bold text-purple-400 mb-3 flex items-center gap-2"><i data-lucide="skull" class="w-5 h-5"></i> Archenemy</h4>
+                    <p class="mb-2">A "one vs. many" format where one player (the Archenemy) faces a team of heroes, utilizing powerful scheme cards.</p>
+                    <ul class="list-disc pl-5 space-y-2 text-sm">
+                        <li><strong>The Archenemy:</strong> Starts with 40 life (or 60 in Archenemy Commander) and always takes the first turn. They have a scheme deck in the command zone.</li>
+                        <li><strong>The Heroes:</strong> Take a simultaneous shared turn (like Two-Headed Giant). Each hero starts with 20 life (or they share a 60-life pool in Commander). Any hero can block for any other hero.</li>
+                        <li>At the beginning of the Archenemy's precombat main phase, they reveal the top card of the scheme deck and "set it in motion."</li>
+                        <li>Standard schemes resolve and go to the bottom of the deck. "Ongoing" schemes remain active until they say they are abandoned.</li>
+                    </ul>
+                </section>
+
+                <!-- Chaos Magic Rules -->
+                <section>
+                    <h4 class="text-xl font-bold text-orange-400 mb-3 flex items-center gap-2"><i data-lucide="zap" class="w-5 h-5"></i> Chaos Magic</h4>
+                    <p class="mb-2">A casual Free-for-All variant where players add a shared Chaos Deck to create exciting and unpredictable challenges.</p>
+                    <ul class="list-disc pl-5 space-y-2 text-sm">
+                        <li>The Chaos deck consists of 20–30 standard Magic cards selected by the group.</li>
+                        <li>The player who goes first is the Chaos player. Before they untap at the beginning of their turn, they flip a card from the Chaos Deck.</li>
+                        <li>That card is "in effect" until the Chaos player flips a different card after a full round of turns.</li>
+                        <li>The active Chaos card isn't considered "in play" and cannot be targeted or affected by spells/abilities. Any player may use abilities granted by the card, or if it has an immediate effect (like a board wipe), all players resolve it immediately.</li>
+                    </ul>
+                </section>
             </div>
         </div>
     </div>
@@ -135,6 +188,14 @@
             notification: null,
             gridView: 'normal',
             playLog: []
+        };
+
+        // Hardcoded Presets as a fallback to avoid Scryfall rate limits / specific set query errors
+        const PRESET_DATA = {
+            'set:hop': ["Academy at Tolaria West", "Agyrem", "Akoum", "Aretopolis", "Bant", "Bloodhill Bastion", "Celestine Reef", "Cliffside Market", "Edge of Malacol", "Eloren Wilds", "Feeding Grounds", "Fields of Summer", "Glimmervoid Basin", "Goldmeadow", "Grand Ossuary", "Grixis", "Horizon Boughs", "Immersturm", "Isle of Vesuva", "Izzet Steam Maze", "Krosa", "Lethe Lake", "Llanowar", "Minamo", "Murasa", "Naar Isle", "Naya", "Otaria", "Panopticon", "Pools of Becoming", "Raven's Run", "Sanctum of Serra", "Sea of Sand", "Shiv", "Skybreen", "Sokenzan", "Stronghold Furnace", "Tazeem", "The Aether Flues", "The Dark Barony", "The Eon Fog", "The Fourth Sphere", "The Hippodrome", "The Maelstrom", "The Undercity", "Turri Island", "Undercity Reaches", "Velis Vel"],
+            'set:pc2': ["Astral Arena", "Bloodhill Bastion", "Celestine Reef", "Chaotic Aether", "Edge of Malacol", "Furnace Layer", "Gavony", "Glen Elendra", "Grand Ossuary", "Grove of the Dreampods", "Hedron Fields of Agadeem", "Horizon Boughs", "Interplanar Tunnel", "Jund", "Kessig", "Kharasha Foothills", "Kilnspire District", "Lair of the Ashen Idol", "Lethe Lake", "Mirrored Depths", "Morphic Tide", "Mount Keralia", "Nephalia", "Norn's Dominion", "Onakke Catacomb", "Orochi Colony", "Orzhova", "Planewide Disaster", "Prahv", "Quicksilver Sea", "Reality Shaping", "Selesnya Loft-Gardens", "Stensia", "Takenuma", "Talon Gates", "Time Distortion", "Trail of the Mage-Rings", "Truga Jungle", "Windriddle Palaces", "Zephyr Epicenter"],
+            'set:arc': ["A Reckoning Approaches", "Approach My Molten Realm", "Behold the Power of Destruction", "Choose Your Champion", "Dance, Pathetic Marionette", "Delusions of Mediocrity", "Embrace My Diabolical Vision", "Every Hope Shall Vanish", "Every Last Vestige Shall Rot", "Evil Comes to Fruition", "Feed the Machine", "I Bask in Your Silent Awe", "I Call on the Ancient Magics", "I Delight in Your Convulsions", "I Know All, I See All", "Ignite the Cloneforge!", "Into the Earthen Maw", "Introductions Are in Order", "Know Naught but Fire", "Look Skyward and Despair", "May Civilization Collapse", "Mortal Flesh Is Weak", "My Crushing Masterstroke", "My Genius Knows No Bounds", "My Undead Horde Awakens", "My Wish Is Your Command", "Nature Demands an Offering", "Nature Shields Its Own", "Nothing Can Stop Me Now", "Only Blood Ends Your Agonies", "Realms Befitting My Majesty", "Roots of All Evil", "Rotted Ones, Lay Siege", "Surrender Your Thoughts", "The Dead Shall Serve", "The Fate of the Flammable", "The Iron Caltrops of Doom", "The Pieces Are Coming Together", "The Very Soil Shall Shake", "Tooth, Claw, and Tail", "Which of You Burns Brightest?", "Your Fate Is Thrice Sealed", "Your Puny Minds Cannot Fathom", "Your Will Is Not Your Own"],
+            'set:e01': ["A Display of My Dark Power", "Because I Have Willed It", "Behold My Grandeur", "Bow to My Command", "Choose Your Demise", "Delight in the Hunt", "Every Dream a Nightmare", "Forbidding Spirit", "Know Evil", "Makin' Extras", "My Laughter Echoes", "No One Will Hear Your Cries", "Pay Tribute to Me", "Power Without Equal", "Secret Summoning", "The Mighty Will Fall", "There Is No Refuge", "This World Belongs to Me", "What's Yours Is Now Mine", "When Will You Learn?"]
         };
 
         const MODES = {
@@ -160,8 +221,7 @@
                 actionLabel: 'Planeswalk (Next Plane)',
                 presets: [
                     { name: 'Planechase (2009)', query: 'set:hop' },
-                    { name: 'Planechase 2012', query: 'set:pc2' },
-                    { name: 'Planechase Anthology', query: 'set:pca' }
+                    { name: 'Planechase 2012', query: 'set:pc2' }
                 ]
             },
             archenemy: {
@@ -236,36 +296,37 @@
                 this.render();
                 
                 try {
-                    // Scryfall's exact set search logic
-                    const fullQuery = `search?q=${encodeURIComponent(query + ' ' + state.mode.query)}`;
-                    const response = await fetch(`https://api.scryfall.com/cards/${fullQuery}`);
-                    
-                    if (response.ok) {
-                        let data = await response.json();
-                        let allCards = data.data;
-
-                        // Handle pagination for larger sets if necessary
-                        while (data.has_more && data.next_page) {
-                             const nextPageResponse = await fetch(data.next_page);
-                             if(nextPageResponse.ok) {
-                                 data = await nextPageResponse.json();
-                                 allCards = allCards.concat(data.data);
-                             } else {
-                                 break;
-                             }
+                    const presetList = PRESET_DATA[query];
+                    if (presetList) {
+                        // Use the exact match collection endpoint to build the preset to ensure accuracy
+                        const requests = presetList.map(name => ({ name: name }));
+                        const chunks = [];
+                        for (let i = 0; i < requests.length; i += 75) {
+                            chunks.push(requests.slice(i, i + 75));
                         }
 
-                        const cards = allCards.filter(c => c.image_uris || (c.card_faces && c.card_faces[0].image_uris));
+                        let newDeck = [];
+                        for (const chunk of chunks) {
+                            const payload = { identifiers: chunk };
+                            const response = await fetch('https://api.scryfall.com/cards/collection', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+
+                            if (response.ok) {
+                                const data = await response.json();
+                                newDeck = newDeck.concat(data.data);
+                            }
+                        }
                         
-                        // Clear current deck and load preset
-                        state.deck = cards.map(card => JSON.parse(JSON.stringify(card)));
-                        this.showNotification(`Loaded ${cards.length} cards from preset.`);
+                        state.deck = newDeck.filter(c => c.image_uris || (c.card_faces && c.card_faces[0].image_uris));
+                        this.showNotification(`Loaded ${state.deck.length} cards from preset.`);
                     } else {
-                         console.error("API response not ok", response.status);
-                         this.showNotification(`Error loading preset. API Status: ${response.status}`);
+                        this.showNotification("Preset data not found locally.");
                     }
                 } catch (err) {
-                    console.error("Scryfall API Error:", err);
+                    console.error("Preset Loading Error:", err);
                     this.showNotification(`Failed to load preset data.`);
                 }
                 
@@ -280,9 +341,7 @@
                 document.getElementById('importTextarea').value = '';
                 
                 modal.classList.remove('hidden');
-                // Trigger reflow
-                void modal.offsetWidth;
-                
+                void modal.offsetWidth; // trigger reflow
                 modal.classList.remove('opacity-0', 'pointer-events-none');
                 content.classList.remove('scale-95');
                 content.classList.add('scale-100');
@@ -296,9 +355,7 @@
                 content.classList.remove('scale-100');
                 content.classList.add('scale-95');
                 
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                }, 300); // match transition duration
+                setTimeout(() => { modal.classList.add('hidden'); }, 300);
             },
 
             async processImportList() {
@@ -313,32 +370,20 @@
                 btn.innerHTML = `<div class="spinner w-4 h-4 border-2"></div> Importing...`;
                 btn.disabled = true;
 
-                // Parse the text list
                 const lines = rawText.split('\n');
                 const requests = [];
-
-                // Simple regex to match: [optional qty] [Card Name]
-                // Examples: "1 Day of Judgment", "Day of Judgment", "4x Lightning Bolt"
                 const lineRegex = /^(?:(\d+)x?\s+)?(.+)$/i;
 
                 lines.forEach(line => {
                     const cleanLine = line.trim();
-                    if (!cleanLine || cleanLine.startsWith('//') || cleanLine.startsWith('#')) return; // skip empty or comments
+                    if (!cleanLine || cleanLine.startsWith('//') || cleanLine.startsWith('#')) return; 
 
                     const match = cleanLine.match(lineRegex);
                     if (match) {
                         const qty = parseInt(match[1], 10) || 1;
                         let cardName = match[2].trim();
-                        
-                        // Handle simple board designations like "SB: 1 Day of Judgment"
-                        if(cardName.toLowerCase().startsWith('sb: ')) {
-                            cardName = cardName.substring(4).trim();
-                        }
-
-                        if (cardName) {
-                            // Format for Scryfall's collection API
-                            requests.push({ name: cardName, qty: qty });
-                        }
+                        if(cardName.toLowerCase().startsWith('sb: ')) cardName = cardName.substring(4).trim();
+                        if (cardName) requests.push({ name: cardName, qty: qty });
                     }
                 });
 
@@ -348,21 +393,15 @@
                     return;
                 }
 
-                // Scryfall collections API allows max 75 per request
                 const chunks = [];
-                for (let i = 0; i < requests.length; i += 75) {
-                    chunks.push(requests.slice(i, i + 75));
-                }
+                for (let i = 0; i < requests.length; i += 75) chunks.push(requests.slice(i, i + 75));
 
                 let totalAdded = 0;
                 let failedCards = [];
 
                 for (const chunk of chunks) {
                     try {
-                        const payload = {
-                            identifiers: chunk.map(req => ({ name: req.name }))
-                        };
-
+                        const payload = { identifiers: chunk.map(req => ({ name: req.name })) };
                         const response = await fetch('https://api.scryfall.com/cards/collection', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -371,33 +410,17 @@
 
                         if (response.ok) {
                             const data = await response.json();
-                            
-                            // Map results back to quantities and add to deck
                             data.data.forEach(card => {
-                                // Find the original request to get the quantity
-                                // Handle case sensitivity and exact matches
-                                const originalReq = chunk.find(r => 
-                                    r.name.toLowerCase() === card.name.toLowerCase() || 
-                                    card.name.toLowerCase().includes(r.name.toLowerCase())
-                                );
-                                
+                                const originalReq = chunk.find(r => r.name.toLowerCase() === card.name.toLowerCase() || card.name.toLowerCase().includes(r.name.toLowerCase()));
                                 const qty = originalReq ? originalReq.qty : 1;
-                                
                                 for(let i=0; i<qty; i++) {
                                     state.deck.push(JSON.parse(JSON.stringify(card)));
                                     totalAdded++;
                                 }
                             });
-
-                            if(data.not_found && data.not_found.length > 0) {
-                                failedCards = failedCards.concat(data.not_found.map(nf => nf.name));
-                            }
-                        } else {
-                            console.error("Scryfall Collection API error:", response.status);
+                            if(data.not_found && data.not_found.length > 0) failedCards = failedCards.concat(data.not_found.map(nf => nf.name));
                         }
-                    } catch (err) {
-                        console.error("Error fetching chunk:", err);
-                    }
+                    } catch (err) { console.error("Error fetching chunk:", err); }
                 }
 
                 this.resetImportBtn(btn, originalBtnContent);
@@ -417,6 +440,23 @@
                 btn.disabled = false;
             },
 
+            toggleRules() {
+                const modal = document.getElementById('rulesModal');
+                const content = document.getElementById('rulesModalContent');
+                
+                if (modal.classList.contains('hidden')) {
+                    modal.classList.remove('hidden');
+                    void modal.offsetWidth;
+                    modal.classList.remove('opacity-0', 'pointer-events-none');
+                    content.classList.remove('scale-95');
+                    content.classList.add('scale-100');
+                } else {
+                    modal.classList.add('opacity-0', 'pointer-events-none');
+                    content.classList.remove('scale-100');
+                    content.classList.add('scale-95');
+                    setTimeout(() => { modal.classList.add('hidden'); }, 300);
+                }
+            },
 
             handleSearch(event) {
                 event.preventDefault();
@@ -424,12 +464,36 @@
                 this.searchCards(query);
             },
 
-            addCardToDeck(cardId) {
+            addCardToDeck(cardId, elementId) {
+                // Save current scroll position
+                const scrollContainer = document.getElementById('resultsContainer');
+                const scrollPos = scrollContainer ? scrollContainer.scrollTop : 0;
+
                 const card = state.searchResults.find(c => c.id === cardId);
                 if (card) {
                     state.deck.push(JSON.parse(JSON.stringify(card)));
-                    this.showNotification(`Added ${card.name} to deck`);
-                    this.render();
+                    
+                    // Show a quick visual flash on the card instead of a global notification to reduce spam
+                    const cardEl = document.getElementById(elementId);
+                    if(cardEl) {
+                        const overlay = cardEl.querySelector('.add-overlay');
+                        if(overlay) {
+                            overlay.innerHTML = `<span class="bg-emerald-600 text-white px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1"><i data-lucide="check" class="w-4 h-4"></i> Added</span>`;
+                            lucide.createIcons();
+                            setTimeout(() => {
+                                overlay.innerHTML = `<span class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Add</span>`;
+                                lucide.createIcons();
+                            }, 1000);
+                        }
+                    }
+
+                    this.render(true); // pass true to preserve scroll
+                    
+                    // Restore scroll position
+                    const newScrollContainer = document.getElementById('resultsContainer');
+                    if (newScrollContainer) {
+                        newScrollContainer.scrollTop = scrollPos;
+                    }
                 }
             },
 
@@ -544,15 +608,15 @@
 
             showNotification(msg) {
                 state.notification = msg;
-                this.render();
+                this.render(true);
                 setTimeout(() => {
                     state.notification = null;
-                    this.render();
-                }, 3500); // Slightly longer for error messages
+                    this.render(true);
+                }, 3000);
             },
 
             // --- View Rendering ---
-            render() {
+            render(preserveScroll = false) {
                 const appDiv = document.getElementById('app');
                 const headerStatus = document.getElementById('header-status');
                 
@@ -633,7 +697,6 @@
                     </div>
                 `;
 
-                // Chaos Magic specific import button
                 let importBtnHtml = '';
                 if (state.mode.id === 'chaos') {
                      importBtnHtml = `
@@ -651,8 +714,8 @@
                 } else {
                     if (state.gridView === 'list') {
                         resultsHtml = `<div class="${gridClass}">
-                            ${state.searchResults.map(card => `
-                                <div class="flex items-center justify-between p-3 bg-slate-800 border border-slate-700 rounded-lg hover:border-indigo-500 transition-colors cursor-pointer group" onclick="app.addCardToDeck('${card.id}')">
+                            ${state.searchResults.map((card, idx) => `
+                                <div id="card-el-${idx}" class="flex items-center justify-between p-3 bg-slate-800 border border-slate-700 rounded-lg hover:border-indigo-500 transition-colors cursor-pointer group" onclick="app.addCardToDeck('${card.id}', 'card-el-${idx}')">
                                     <div class="flex items-center gap-4">
                                         <div class="w-10 h-10 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
                                             <img src="${this.getCardImage(card)}" class="w-full h-full object-cover" alt="icon">
@@ -662,18 +725,18 @@
                                             <div class="text-xs text-slate-400">${card.type_line || ''}</div>
                                         </div>
                                     </div>
-                                    <button class="bg-indigo-600/0 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white px-3 py-1 rounded-md text-sm transition-all flex items-center gap-1">
+                                    <div class="add-overlay bg-indigo-600/0 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white px-3 py-1 rounded-md text-sm transition-all flex items-center gap-1">
                                         <i data-lucide="plus" class="w-4 h-4"></i> Add
-                                    </button>
+                                    </div>
                                 </div>
                             `).join('')}
                         </div>`;
                     } else {
                         resultsHtml = `<div class="${gridClass}">
-                            ${state.searchResults.map(card => `
-                                <div class="relative group cursor-pointer card-hover bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-700 ${containerClass}" onclick="app.addCardToDeck('${card.id}')">
+                            ${state.searchResults.map((card, idx) => `
+                                <div id="card-el-${idx}" class="relative group cursor-pointer card-hover bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-700 ${containerClass}" onclick="app.addCardToDeck('${card.id}', 'card-el-${idx}')">
                                     <img src="${this.getCardImage(card)}" class="${imgClass}" alt="${card.name}" loading="lazy">
-                                    <div class="absolute inset-0 bg-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm z-10">
+                                    <div class="add-overlay absolute inset-0 bg-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm z-10">
                                         <span class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Add</span>
                                     </div>
                                 </div>
@@ -682,7 +745,6 @@
                     }
                 }
 
-                // Preset Dropdown Html
                 let presetHtml = '';
                 if (state.mode.presets && state.mode.presets.length > 0) {
                     presetHtml = `
@@ -706,7 +768,7 @@
 
                 const deckHtml = state.deck.length === 0
                     ? `<div class="text-slate-500 text-sm text-center py-10 border-2 border-dashed border-slate-700 rounded-xl">Your deck is empty.<br>Click cards to add them.</div>`
-                    : `<div class="flex flex-col gap-2 max-h-[40vh] overflow-y-auto hide-scrollbar pr-2">
+                    : `<div class="flex flex-col gap-2 max-h-[40vh] overflow-y-auto hide-scrollbar pr-2" id="deckContainer">
                         ${state.deck.map((card, i) => `
                             <div class="flex items-center justify-between bg-slate-800 p-2 rounded-lg border border-slate-700">
                                 <span class="text-sm font-medium truncate flex-grow pr-2">${card.name}</span>
@@ -729,7 +791,7 @@
                             ${importBtnHtml}
                             ${viewControls}
                         </div>
-                        <div class="flex-grow overflow-y-auto hide-scrollbar pr-4">
+                        <div class="flex-grow overflow-y-auto hide-scrollbar pr-4" id="resultsContainer">
                             ${resultsHtml}
                         </div>
                     </div>
